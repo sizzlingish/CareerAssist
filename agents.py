@@ -4,12 +4,12 @@ from crewai import Agent, LLM
 
 
 # ============================================================
-# GEMINI API KEY
+# GROQ API KEY
 # ============================================================
 
-def get_gemini_api_key():
+def get_groq_api_key():
     """
-    Get the Gemini API key.
+    Get the Groq API key.
 
     Priority:
     1. Streamlit Secrets
@@ -18,7 +18,7 @@ def get_gemini_api_key():
 
     # Streamlit Cloud / .streamlit/secrets.toml
     try:
-        key = st.secrets.get("GEMINI_API_KEY")
+        key = st.secrets.get("GROQ_API_KEY")
 
         if key:
             return str(key).strip()
@@ -26,7 +26,7 @@ def get_gemini_api_key():
         pass
 
     # Environment variable
-    key = os.getenv("GEMINI_API_KEY")
+    key = os.getenv("GROQ_API_KEY")
 
     if key:
         return key.strip()
@@ -34,41 +34,42 @@ def get_gemini_api_key():
     return None
 
 
-GEMINI_API_KEY = get_gemini_api_key()
+GROQ_API_KEY = get_groq_api_key()
 
 
-if not GEMINI_API_KEY:
+if not GROQ_API_KEY:
     raise ValueError(
-        "GEMINI_API_KEY is not configured.\n\n"
-        "For Streamlit Cloud, add GEMINI_API_KEY "
+        "GROQ_API_KEY is not configured.\n\n"
+        "For Streamlit Cloud, add GROQ_API_KEY "
         "under App Settings → Secrets."
     )
 
 
 # ============================================================
-# GEMINI MODEL
+# GROQ MODEL
 # ============================================================
 
 try:
-    secret_model = st.secrets.get("GEMINI_MODEL")
+    secret_model = st.secrets.get("GROQ_MODEL")
 except Exception:
     secret_model = None
 
 
-GEMINI_MODEL = (
-    os.getenv("GEMINI_MODEL")
+GROQ_MODEL = (
+    os.getenv("GROQ_MODEL")
     or secret_model
-    or "gemini-3.8-flash"
+    or "openai/gpt-oss-20b"
 )
 
 
 # ============================================================
-# GEMINI LLM
+# GROQ LLM
 # ============================================================
 
-gemini_llm = LLM(
-    model=f"gemini/{GEMINI_MODEL}",
-    api_key=GEMINI_API_KEY,
+groq_llm = LLM(
+    model=GROQ_MODEL,
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1",
 )
 
 
@@ -77,7 +78,7 @@ gemini_llm = LLM(
 # ============================================================
 
 COMMON_AGENT_SETTINGS = {
-    "llm": gemini_llm,
+    "llm": groq_llm,
     "verbose": True,
 }
 
@@ -245,7 +246,7 @@ critic_agent = Agent(
     ),
     **COMMON_AGENT_SETTINGS,
     allow_delegation=False,
-    )
+)
 
 
 # ============================================================
@@ -253,5 +254,5 @@ critic_agent = Agent(
 # ============================================================
 
 print(
-    f"CareerOps AI Gemini model configured: {GEMINI_MODEL}"
+    f"CareerOps AI Groq model configured: {GROQ_MODEL}"
 )
