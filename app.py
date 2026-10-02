@@ -1,3 +1,4 @@
+```python
 import os
 import time
 import tempfile
@@ -172,37 +173,52 @@ def reset_everything():
 
 
 # ============================================================
-# GEMINI ERROR DETECTION
+# GROQ ERROR DETECTION
 # ============================================================
 
-def is_daily_quota_error(error):
+def is_quota_error(error):
     """
-    Detect Gemini daily/project/model quota exhaustion.
-
-    These errors should NOT be retried immediately because
-    retrying will not restore a daily quota.
+    Detect Groq quota/rate-limit errors.
     """
 
     message = str(error).upper()
 
     quota_patterns = [
-        "GENERATEREQUESTSPERDAYPERPROJECTPERMODEL-FREETIER",
-        "EXCEEDED YOUR CURRENT QUOTA",
+        "RATE_LIMIT",
+        "RATE LIMIT",
+        "TOO MANY REQUESTS",
+        "429",
+        "RESOURCE_EXHAUSTED",
         "QUOTA EXCEEDED",
-        "QUOTA_EXCEEDED",
-        "PERDAYPERPROJECTPERMODEL",
+        "LIMIT REACHED",
     ]
 
     return any(pattern in message for pattern in quota_patterns)
 
 
-def is_retryable_ai_error(error):
+def is_model_not_found_error(error):
     """
-    Return True only for temporary errors that may recover
-    after a short delay.
+    Detect invalid/unavailable Groq model errors.
     """
 
-    if is_daily_quota_error(error):
+    message = str(error).upper()
+
+    return (
+        "MODEL_NOT_FOUND" in message
+        or "MODEL" in message and "NOT FOUND" in message
+        or "404" in message
+    )
+
+
+def is_retryable_ai_error(error):
+    """
+    Return True only for temporary AI service errors.
+    """
+
+    if is_quota_error(error):
+        return False
+
+    if is_model_not_found_error(error):
         return False
 
     message = str(error).upper()
@@ -211,10 +227,6 @@ def is_retryable_ai_error(error):
         "503",
         "SERVICE_UNAVAILABLE",
         "UNAVAILABLE",
-        "429",
-        "RESOURCE_EXHAUSTED",
-        "RATE_LIMIT",
-        "TOO MANY REQUESTS",
         "500",
         "502",
         "504",
@@ -223,7 +235,10 @@ def is_retryable_ai_error(error):
         "GATEWAY TIMEOUT",
     ]
 
-    return any(pattern in message for pattern in retryable_patterns)
+    return any(
+        pattern in message
+        for pattern in retryable_patterns
+    )
 
 
 # ============================================================
@@ -231,35 +246,31 @@ def is_retryable_ai_error(error):
 # ============================================================
 
 def kickoff_with_retry(crew, inputs, max_attempts=4):
-    """
-    Run the selected agent crew.
-
-    Only temporary API failures are retried.
-
-    Daily quota exhaustion is immediately returned to the UI.
-    """
 
     delays = [5, 15, 30]
 
     for attempt in range(max_attempts):
+
         try:
             return crew.kickoff(inputs=inputs)
 
         except Exception as error:
 
-            # Daily quota exhaustion should never be repeatedly retried.
-            if is_daily_quota_error(error):
+            if is_quota_error(error):
                 raise error
 
-            # Non-temporary errors should immediately stop.
+            if is_model_not_found_error(error):
+                raise error
+
             if not is_retryable_ai_error(error):
                 raise error
 
-            # Last attempt
             if attempt == max_attempts - 1:
                 raise error
 
-            delay = delays[min(attempt, len(delays) - 1)]
+            delay = delays[
+                min(attempt, len(delays) - 1)
+            ]
 
             st.warning(
                 f"Temporary AI service error. "
@@ -274,17 +285,16 @@ def kickoff_with_retry(crew, inputs, max_attempts=4):
 # ============================================================
 
 def create_single_agent_crew(agent_name):
-    """
-    Create a Crew containing exactly ONE agent and ONE task.
-
-    No other agent is included in the Crew.
-    """
 
     if agent_name not in AGENTS:
-        raise ValueError(f"Unknown agent: {agent_name}")
+        raise ValueError(
+            f"Unknown agent: {agent_name}"
+        )
 
     if agent_name not in TASKS:
-        raise ValueError(f"No task configured for: {agent_name}")
+        raise ValueError(
+            f"No task configured for: {agent_name}"
+        )
 
     selected_agent = AGENTS[agent_name]
     selected_task = TASKS[agent_name]
@@ -309,9 +319,6 @@ def run_selected_agent(
     job_description,
     career_request,
 ):
-    """
-    Execute exactly one selected agent.
-    """
 
     crew = create_single_agent_crew(agent_name)
 
@@ -321,10 +328,6 @@ def run_selected_agent(
         "career_request": career_request,
     }
 
-    # --------------------------------------------------------
-    # Optional career memory
-    # --------------------------------------------------------
-
     memory = None
 
     try:
@@ -332,7 +335,6 @@ def run_selected_agent(
     except Exception:
         memory = None
 
-    # Store current information if the memory class supports it.
     if memory is not None:
 
         try:
@@ -343,19 +345,19 @@ def run_selected_agent(
 
         try:
             if hasattr(memory, "set_job_description"):
-                memory.set_job_description(job_description)
+                memory.set_job_description(
+                    job_description
+                )
         except Exception:
             pass
 
         try:
             if hasattr(memory, "set_career_request"):
-                memory.set_career_request(career_request)
+                memory.set_career_request(
+                    career_request
+                )
         except Exception:
             pass
-
-    # --------------------------------------------------------
-    # Execute selected agent
-    # --------------------------------------------------------
 
     result = kickoff_with_retry(
         crew=crew,
@@ -370,46 +372,62 @@ def run_selected_agent(
 # ============================================================
 
 def extract_result_text(result):
-    """
-    Convert CrewAI output into normal text.
-    """
 
     if result is None:
         return ""
 
-    # CrewAI CrewOutput
     if hasattr(result, "raw"):
+
         raw = result.raw
 
         if raw is not None:
             return str(raw)
 
-    # Generic object
     return str(result)
 
 
 # ============================================================
-# QUOTA ERROR DISPLAY
+# GROQ ERROR DISPLAY
 # ============================================================
 
 def show_quota_error(error):
+
     st.error(
-        "Gemini API quota has been exhausted."
+        "Groq API rate limit or quota has been reached."
     )
 
     st.markdown(
         """
-        Your Gemini project has reached its current API quota.
-
-        This is different from a temporary API error, so the app
-        will **not keep retrying automatically**.
+        Groq has temporarily limited this application's
+        API usage.
 
         You can:
 
-        - Wait for the quota to reset
-        - Check your Gemini API usage
-        - Use a different Gemini project/API key
-        - Upgrade the applicable Gemini API plan
+        - Wait for the rate limit to reset
+        - Check your Groq usage and limits
+        - Reduce the number of AI calls
+        - Use an appropriate Groq plan
+        """
+    )
+
+    with st.expander("Technical details"):
+        st.code(str(error))
+
+
+def show_model_error(error):
+
+    st.error(
+        "The configured Groq model is unavailable."
+    )
+
+    st.markdown(
+        """
+        CareerOps is configured to use:
+
+        `openai/gpt-oss-20b`
+
+        Check your `GROQ_MODEL` Streamlit secret and make
+        sure it contains the complete model ID.
         """
     )
 
@@ -449,24 +467,40 @@ with st.sidebar:
 
     try:
         secret_key_exists = bool(
-            st.secrets.get("GEMINI_API_KEY")
+            st.secrets.get("GROQ_API_KEY")
         )
     except Exception:
         secret_key_exists = False
 
     environment_key_exists = bool(
-        os.getenv("GEMINI_API_KEY")
-        or os.getenv("GOOGLE_API_KEY")
+        os.getenv("GROQ_API_KEY")
     )
 
-    gemini_key_exists = (
-        secret_key_exists or environment_key_exists
+    groq_key_exists = (
+        secret_key_exists
+        or environment_key_exists
     )
 
-    if gemini_key_exists:
-        st.success("Gemini API key detected")
+    if groq_key_exists:
+        st.success("Groq API key detected")
     else:
-        st.error("Gemini API key not detected")
+        st.error("Groq API key not detected")
+
+    try:
+        configured_model = (
+            st.secrets.get("GROQ_MODEL")
+            or os.getenv("GROQ_MODEL")
+            or "openai/gpt-oss-20b"
+        )
+    except Exception:
+        configured_model = (
+            os.getenv("GROQ_MODEL")
+            or "openai/gpt-oss-20b"
+        )
+
+    st.caption(
+        f"Model: `{configured_model}`"
+    )
 
     st.info(
         "Only the selected agent is executed when you click Run."
@@ -544,13 +578,14 @@ if cv_upload is not None:
 
             st.session_state.cv_text = (
                 cv_upload.read()
-                .decode("utf-8", errors="ignore")
+                .decode(
+                    "utf-8",
+                    errors="ignore",
+                )
             )
 
         else:
 
-            # Create a temporary file for the existing
-            # extract_cv_text() utility.
             with tempfile.NamedTemporaryFile(
                 delete=False,
                 suffix=file_extension,
@@ -642,10 +677,13 @@ st.session_state.career_request = career_request_input
 # ============================================================
 
 def validate_inputs():
+
     errors = []
 
     if not st.session_state.cv_text.strip():
-        errors.append("Please provide your CV.")
+        errors.append(
+            "Please provide your CV."
+        )
 
     if not st.session_state.job_description.strip():
         errors.append(
@@ -726,7 +764,11 @@ if run_button:
 
             except Exception as error:
 
-                if is_daily_quota_error(error):
+                if is_model_not_found_error(error):
+
+                    show_model_error(error)
+
+                elif is_quota_error(error):
 
                     show_quota_error(error)
 
@@ -776,10 +818,6 @@ if st.session_state.result:
         unsafe_allow_html=True,
     )
 
-    # --------------------------------------------------------
-    # Download
-    # --------------------------------------------------------
-
     safe_agent_name = (
         st.session_state.result_agent
         .lower()
@@ -797,3 +835,4 @@ if st.session_state.result:
         mime="text/plain",
         use_container_width=True,
     )
+```
