@@ -66,7 +66,7 @@ GROQ_MODEL = raw_model.strip()
 groq_llm = LLM(
     model=GROQ_MODEL,
     api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
+    base_url="groq/openai/gpt-oss-20b",
 )
 
 
