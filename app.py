@@ -1,4 +1,4 @@
-```python
+
 import os
 import time
 import tempfile
@@ -835,4 +835,4 @@ if st.session_state.result:
         mime="text/plain",
         use_container_width=True,
     )
-```
+
