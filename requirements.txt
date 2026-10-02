@@ -1,6 +1,7 @@
 streamlit
-crewai[google-genai]
+crewai
 crewai-tools
+openai
 pypdf
 requests
 beautifulsoup4
