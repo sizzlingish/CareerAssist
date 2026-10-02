@@ -22,14 +22,13 @@ def get_groq_api_key():
 GROQ_API_KEY = get_groq_api_key()
 
 if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY is not configured.")
+    raise ValueError(
+        "GROQ_API_KEY is not configured."
+    )
 
-
-# Fixed Groq model
-GROQ_MODEL = "openai/gpt-oss-20b"
 
 groq_llm = LLM(
-    model=GROQ_MODEL,
+    model="openai/gpt-oss-20b",
     api_key=GROQ_API_KEY,
     base_url="https://api.groq.com/openai/v1",
 )
