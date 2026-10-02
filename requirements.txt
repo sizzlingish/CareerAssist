@@ -2,6 +2,7 @@ streamlit
 crewai
 crewai-tools
 openai
+litellm
 pypdf
 requests
 beautifulsoup4
