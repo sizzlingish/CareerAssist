@@ -1,3 +1,4 @@
+
 import os
 import time
 import tempfile
@@ -176,9 +177,7 @@ def reset_everything():
 # ============================================================
 
 def is_quota_error(error):
-    """
-    Detect Groq quota/rate-limit errors.
-    """
+    """Detect Groq quota/rate-limit errors."""
 
     message = str(error).upper()
 
@@ -192,27 +191,29 @@ def is_quota_error(error):
         "LIMIT REACHED",
     ]
 
-    return any(pattern in message for pattern in quota_patterns)
+    return any(
+        pattern in message
+        for pattern in quota_patterns
+    )
 
 
 def is_model_not_found_error(error):
-    """
-    Detect invalid/unavailable Groq model errors.
-    """
+    """Detect invalid/unavailable model errors."""
 
     message = str(error).upper()
 
     return (
         "MODEL_NOT_FOUND" in message
-        or "MODEL" in message and "NOT FOUND" in message
+        or (
+            "MODEL" in message
+            and "NOT FOUND" in message
+        )
         or "404" in message
     )
 
 
 def is_retryable_ai_error(error):
-    """
-    Return True only for temporary AI service errors.
-    """
+    """Return True only for temporary AI service errors."""
 
     if is_quota_error(error):
         return False
@@ -256,16 +257,16 @@ def kickoff_with_retry(crew, inputs, max_attempts=4):
         except Exception as error:
 
             if is_quota_error(error):
-                raise error
+                raise
 
             if is_model_not_found_error(error):
-                raise error
+                raise
 
             if not is_retryable_ai_error(error):
-                raise error
+                raise
 
             if attempt == max_attempts - 1:
-                raise error
+                raise
 
             delay = delays[
                 min(attempt, len(delays) - 1)
@@ -277,6 +278,8 @@ def kickoff_with_retry(crew, inputs, max_attempts=4):
             )
 
             time.sleep(delay)
+
+    return None
 
 
 # ============================================================
@@ -421,12 +424,11 @@ def show_model_error(error):
 
     st.markdown(
         """
-        CareerOps is configured to use:
+        CareerOps is configured to use the model
+        specified by `GROQ_MODEL`.
 
-        `openai/gpt-oss-20b`
-
-        Check your `GROQ_MODEL` Streamlit secret and make
-        sure it contains the complete model ID.
+        Check your Streamlit secrets and make sure the
+        model ID is valid for your Groq account.
         """
     )
 
@@ -446,10 +448,12 @@ with st.sidebar:
 
     st.subheader("Agent")
 
+    agent_names = list(AGENTS.keys())
+
     selected_agent = st.selectbox(
         "Choose one agent",
-        options=list(AGENTS.keys()),
-        index=list(AGENTS.keys()).index(
+        options=agent_names,
+        index=agent_names.index(
             st.session_state.selected_agent
         ),
     )
@@ -747,6 +751,7 @@ if run_button:
                 )
 
                 st.session_state.result = result_text
+
                 st.session_state.result_agent = (
                     selected_agent
                 )
